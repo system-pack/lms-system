@@ -8,72 +8,45 @@ import util.exception.HinaOrmapperException;
 
 public class ConnectionFactory {
 
-    private static Connection connection = null;
+  private static Connection connection = null;
 
-    /**
-     * シングルトンモード<br>
-     * true：コネクションはシングルトンとなる。
-     */
-    private static boolean isSingleton = false;
+  private ConnectionFactory() {
+    // インスタンスを作りたくないクラスは、コンストラクタをprivateにする。
+  }
 
-    private ConnectionFactory() {
-        // インスタンスを作りたくないクラスは、コンストラクタをprivateにする。
-    }
+  /**
+   * コネクションを取得する。<br>
+   * プロジェクトによりここを変更する。
+   * @return
+   */
+  static public Connection getConnection() {
 
-    public void setSinglton(boolean isSingleton) {
-        ConnectionFactory.isSingleton = isSingleton;
-    }
+    // mariadb
+    String driver = "org.mariadb.jdbc.Driver";
+    String url = "jdbc:mariadb://localhost/lms";
+    String user = "root";
+    String password = "";
 
-    /**
-     * コネクションを取得する。<br>
-     * プロジェクトによりここを変更する。
-     * @return
-     */
-    static public Connection getConnection() {
+    return getConnection(driver, url, user, password);
+  }
 
-        // derby
-        // String driver = "org.apache.derby.jdbc.ClientDriver";
-        // String url = "jdbc:derby://localhost:1527/db/db;create=true";
-        // String user = "vipworks";
-        // String password = "vipworks";
+  static public Connection getConnection(String driver, String url, String user, String password) throws HinaOrmapperException {
 
-        // mariadb
-        String driver = "org.mariadb.jdbc.Driver";
-        String url = "jdbc:mariadb://localhost:3306/wako_juku";
-        String user = "root";
-        String password = "";
+    try {
 
-        // String driver = "org.sqlite.JDBC";
-        // String url = "jdbc:sqlite:" + FileUtil.getCurrentPath() +  "docSearch.db";
-        // String user = null;
-        // String password = null;
+      Class.forName(driver); // 最近は必要なくなった。
 
-        return getConnection(driver, url, user, password);
-    }
+      connection = DriverManager.getConnection(url, user, password);
+      connection.setAutoCommit(false);
 
-    static public Connection getConnection(String driver, String url, String user, String password) throws HinaOrmapperException {
+    } catch (ClassNotFoundException | SQLException e) {
 
-        if (connection != null && isSingleton) {
-            return connection;
-        }
-
-        try {
-
-            Class.forName(driver); // 最近は必要なくなった。
-            if (user == null || password == null) {
-                connection = DriverManager.getConnection(url, user, password);
-            } else {
-                connection = DriverManager.getConnection(url);
-            }
-
-        } catch (ClassNotFoundException | SQLException e) {
-
-            throw new HinaOrmapperException("コネクションの生成に失敗しました。", e);
-
-        }
-
-        return connection;
+      throw new HinaOrmapperException("コネクションの生成に失敗しました。", e);
 
     }
+
+    return connection;
+
+  }
 
 }

@@ -16,275 +16,249 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import javax.xml.ws.WebServiceException;
-
 import util.exception.HinaException;
 import util.exception.HinaOrmapperException;
 
 public class HinaOrmapper implements Closeable {
 
-    private Connection con = null;
+  private Connection con = null;
 
-    /**
-     * コンストラクタ
-     */
-    public HinaOrmapper() {
+  /**
+   * コンストラクタ
+   */
+  public HinaOrmapper() {
 
-        this.con = ConnectionFactory.getConnection();
+    this.con = ConnectionFactory.getConnection();
 
+  }
+
+  /**
+   * コネクション取得
+   * @return
+   * @deprecated
+   */
+  public Connection getCon() {
+    return con;
+  }
+
+  /**
+   * コネクションセット
+   * @param con
+   * @deprecated
+   */
+  public void setCon(Connection con) {
+    this.con = con;
+  }
+
+  /**
+   * sqlからマップを取得する
+   * @param id
+   * @param args
+   * @return
+   * @throws HinaException
+   */
+  public List<Map<String, Object>> excecuteQuery(String sql, Object... args) throws HinaException {
+
+    if (sql == null) {
+      throw new HinaOrmapperException("sqlが存在しません。");
     }
 
-    /**
-     * サーバモード<br>
-     * true：複数アクセス可能（コネクションをその都度閉じる）<br>
-     * false：複数アクセス不可（コネクションを閉じずに使いまわす。）
-     *
-     */
-    private boolean isServer = false;
+    List<Map<String, Object>> resultList = new ArrayList<>();
 
-    /**
-     * ロックオブジェクト<br>
-     * サーバモードtrue：インスタンス
-     * サーバモードfalse：staticなオブジェクト
-     */
-    private Lock lock = Lock.lock;
+    // sql実行
+    try (PreparedStatement pst = con.prepareStatement(sql);) {
 
-    /**
-     * コネクション取得
-     * @return
-     * @deprecated
-     */
-    public Connection getCon() {
-        return con;
-    }
-
-    /**
-     * コネクションセット
-     * @param con
-     * @deprecated
-     */
-    public void setCon(Connection con) {
-        this.con = con;
-    }
-
-    /**
-     * サーバモード設定
-     * @param isServer
-     */
-    public void setServerMode(boolean isServer) {
-        this.isServer = isServer;
-        if (isServer) {
-            lock = Lock.lock;
-        } else {
-            lock = new Lock();
+      if (args != null) {
+        int i = 1;
+        for (Object arg : args) {
+          pst.setObject(i++, arg);
         }
-    }
+      }
 
-    /**
-     * sqlからマップを取得する
-     * @param id
-     * @param args
-     * @return
-     * @throws HinaException
-     */
-    public List<Map<String, Object>> excecuteQuery(String sql, Object... args) throws HinaException {
+      try (ResultSet rs = pst.executeQuery()) {
 
-        synchronized (lock) {
+        while (rs.next()) {
 
-            if (sql == null) {
-                throw new HinaOrmapperException("sqlが存在しません。");
+          ResultSetMetaData data = rs.getMetaData();
+
+          int count = data.getColumnCount();
+
+          Map<String, Object> resultMap = new HashMap<>();
+          for (int i = 1; i <= count; i++) {
+
+            // カラム名取得
+            String name = data.getColumnName(i);
+
+            // カラムの値取得
+            int typeInt = data.getColumnType(i);
+            Object result = null;
+            if (typeInt == INTEGER || typeInt == BIGINT || typeInt == TINYINT) {
+
+              // 数字の場合
+              result = rs.getInt(i);
+
+            } else if (typeInt == DATE) {
+
+              // 日付の場合
+              java.sql.Date date = rs.getDate(i);
+              result = new Date(date.getTime());
+
+            } else {
+
+              // その他は文字として処理
+              result = rs.getString(i);
+
             }
 
-            List<Map<String, Object>> resultList = new ArrayList<>();
+            String[] parts = name.split("_");
+            String key = "";
+            for (String part : parts) {
+              key += part.substring(0, 1).toUpperCase() + part.substring(1);
+            }
+            resultMap.put(key, result);
 
-            // sql実行
-            try (PreparedStatement pst = con.prepareStatement(sql);) {
+          }
+          resultList.add(resultMap);
 
-                if (args != null) {
-                    int i = 1;
-                    for (Object arg : args) {
-                        pst.setObject(i++, arg);
-                    }
-                }
+        }
+      }
 
-                try (ResultSet rs = pst.executeQuery()) {
+      return resultList;
+    } catch (Exception e) {
+      throw new HinaOrmapperException("sqlの実行に失敗しました。", e);
+    }
 
-                    while (rs.next()) {
+  }
 
-                        ResultSetMetaData data = rs.getMetaData();
+  /**
+   * 1レコードのみの取得
+   * @param sql
+   * @param clazz
+   * @param params
+   * @return
+   */
+  public <T> T executeQueryOne(String sql, Class<T> clazz, Object... params) {
 
-                        int count = data.getColumnCount();
+    List<T> list = excecuteQuery(sql, clazz, params);
 
-                        Map<String, Object> resultMap = new HashMap<>();
-                        for (int i = 1; i <= count; i++) {
+    if (list.isEmpty()) {
+      return null;
+    }
 
-                            // カラム名取得
-                            String name = data.getColumnName(i);
+    return list.get(0);
+  }
 
-                            // カラムの値取得
-                            int typeInt = data.getColumnType(i);
-                            Object result = null;
-                            if (typeInt == INTEGER || typeInt == BIGINT || typeInt == TINYINT) {
+  /**
+   * sqlから所定のインスタンスを取得する
+   * @param id
+   * @param params
+   * @param clazz
+   * @return
+   * @throws HinaException
+   */
+  public <T> List<T> excecuteQuery(String sql, Class<T> clazz, Object... params) throws HinaException {
 
-                                // 数字の場合
-                                result = rs.getInt(i);
+    List<Map<String, Object>> targetList = excecuteQuery(sql, params);
 
-                            } else if (typeInt == DATE) {
+    // レコードのリストからオブジェクトのリストに
+    List<T> resultList;
+    try {
+      resultList = new ArrayList<>();
+      for (Map<String, Object> resultMap : targetList) {
 
-                                // 日付の場合
-                                java.sql.Date date = rs.getDate(i);
-                                result = new Date(date.getTime());
+        // １レコードからオブジェクトに
+        Object target = clazz.newInstance();
+        for (Entry<String, Object> entry : resultMap.entrySet()) {
 
-                            } else {
+          Object value = entry.getValue();
+          String name = entry.getKey();
 
-                                // その他は文字として処理
-                                result = rs.getString(i);
+          String setterName = "set" + name;
+          Method[] methods = clazz.getMethods();
+          for (Method method : methods) {
 
-                            }
+            if (method.getName().equalsIgnoreCase((setterName))) {
+              Class<?> parameterClazz = method.getParameterTypes()[0];
 
-                            String key = name.toLowerCase().replace("_", "");
-                            resultMap.put(key, result);
+              if (parameterClazz == int.class) {
 
-                        }
-                        resultList.add(resultMap);
+                method.invoke(target, ((Integer) value).intValue());
 
-                    }
-                }
+              } else if (parameterClazz == long.class) {
 
-                return resultList;
-            } catch (Exception e) {
-                throw new HinaOrmapperException("sqlの実行に失敗しました。", e);
+                method.invoke(target, ((Long) value).intValue());
+
+              } else {
+
+                method.invoke(target, parameterClazz.cast(value));
+
+              }
             }
 
-        }
-
-    }
-
-    /**
-     * 1レコードのみの取得
-     * @param sql
-     * @param clazz
-     * @param params
-     * @return
-     */
-    public <T> T executeQueryOne(String sql, Class<T> clazz, Object... params) {
-
-        List<T> list = excecuteQuery(sql, clazz, params);
-
-        if (list.isEmpty()) {
-            return null;
-        }
-
-        return list.get(0);
-    }
-
-    /**
-     * sqlから所定のインスタンスを取得する
-     * @param id
-     * @param params
-     * @param clazz
-     * @return
-     * @throws HinaException
-     */
-    public <T> List<T> excecuteQuery(String sql, Class<T> clazz, Object... params) throws HinaException {
-
-        List<Map<String, Object>> targetList = excecuteQuery(sql, params);
-
-        // レコードのリストからオブジェクトのリストに
-        List<T> resultList;
-        try {
-            resultList = new ArrayList<>();
-            for (Map<String, Object> resultMap : targetList) {
-
-                // １レコードからオブジェクトに
-                Object target = clazz.newInstance();
-                for (Entry<String, Object> entry : resultMap.entrySet()) {
-
-                    Object value = entry.getValue();
-                    String name = entry.getKey();
-
-                    String setterName = "set" + name;
-                    Method[] methods = clazz.getMethods();
-                    for (Method method : methods) {
-
-                        if (method.getName().equalsIgnoreCase((setterName))) {
-                            Class<?> parameterClazz = method.getParameterTypes()[0];
-
-                            if (parameterClazz == int.class) {
-
-                                method.invoke(target, ((Integer) value).intValue());
-
-                            } else {
-
-                                method.invoke(target, parameterClazz.cast(value));
-
-                            }
-                        }
-
-                    }
-
-                }
-
-                resultList.add(clazz.cast(target));
-
-            }
-        } catch (Exception e) {
-            throw new HinaOrmapperException("レコードのインスタンスへの変換に失敗しました。", e);
-        }
-
-        return resultList;
-
-    }
-
-    /**
-     * 更新処理を行う
-     * @param id
-     * @param params
-     * @return
-     * @throws HinaException
-     */
-    public <T> int excecutedUpdate(String sql, String... params) throws HinaException {
-
-        synchronized (lock) {
-
-            int resultCount = 0;
-
-            try (PreparedStatement pst = con.prepareStatement(sql);) {
-
-                int i = 1;
-                for (String param : params) {
-                    pst.setObject(i++, param);
-                }
-
-                resultCount = pst.executeUpdate();
-
-            } catch (Exception e) {
-                throw new HinaOrmapperException("インサート、または、アップデートに、失敗しました。", e);
-            }
-
-            return resultCount;
+          }
 
         }
 
+        resultList.add(clazz.cast(target));
+
+      }
+    } catch (Exception e) {
+      throw new HinaOrmapperException("レコードのインスタンスへの変換に失敗しました。", e);
     }
 
-    /**
-     * リソースのクローズを行う
-     */
-    @Override
-    public void close() throws WebServiceException {
+    return resultList;
 
-        if (!isServer)
-            return;
+  }
 
-        try {
-            if (con != null) {
-                con.close();
-            }
-        } catch (SQLException e) {
+  /**
+   * 更新処理を行う
+   * @param id
+   * @param params
+   * @return
+   * @throws HinaException
+   */
+  public <T> int excecutedUpdate(String sql, String... params) throws HinaException {
 
-            throw new HinaOrmapperException("DBとの接続を閉じるのに失敗しました。", e);
+    int resultCount = 0;
+
+    try (PreparedStatement pst = con.prepareStatement(sql);) {
+
+      int i = 1;
+      for (String param : params) {
+        pst.setObject(i++, param);
+      }
+
+      resultCount = pst.executeUpdate();
+
+    } catch (Exception e) {
+      try {
+        if (con != null) {
+          con.rollback();
         }
-
+      } catch (SQLException e1) {
+        throw new HinaOrmapperException("インサート、または、アップデートに、失敗し、コネクションのクローズに失敗しました。", e);
+      }
+      throw new HinaOrmapperException("インサート、または、アップデートに、失敗しました。", e);
     }
+
+    return resultCount;
+
+  }
+
+  /**
+   * リソースのクローズを行う
+   */
+  @Override
+  public void close() {
+
+    try {
+      if (con != null) {
+        con.commit();
+        con.close();
+      }
+    } catch (SQLException e) {
+      throw new HinaOrmapperException("DBとの接続を閉じるのに失敗しました。", e);
+    }
+
+  }
 }
