@@ -1,7 +1,7 @@
 package jp.co.systempack.lms.question.controller;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.lang.reflect.Type;
 import java.util.List;
 
 import javax.servlet.ServletException;
@@ -9,6 +9,9 @@ import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+
+import org.modelmapper.TypeToken;
 
 import jp.co.systempack.lms.entity.Text;
 import jp.co.systempack.lms.question.dto.QuestionSetDto;
@@ -43,14 +46,16 @@ public class QuestionServlet extends HttpServlet {
 
     // データ変換
     QuestionForm questionFrom = ModelMapperUtil.getInstance().map(questionSet.getQuestion(), QuestionForm.class);
-    List<QuestionDefaultForm> questionDefaultFormList = new ArrayList<QuestionDefaultForm>();
-    ModelMapperUtil.getInstance().map(questionSet.getQuestionDefaultList(), questionDefaultFormList);
+    Type listType = new TypeToken<List<QuestionDefaultForm>>() {
+    }.getType();
+    List<QuestionDefaultForm> questionDefaultFormList = ModelMapperUtil.getInstance().map(questionSet.getQuestionDefaultList(), listType);
     TextForm textFrom = ModelMapperUtil.getInstance().map(text, TextForm.class);
 
-    // リクエストに保存
-    request.setAttribute("question", questionFrom);
-    request.setAttribute("questionDefaultList", questionDefaultFormList);
-    request.setAttribute("text", textFrom);
+    // セッションに保存
+    HttpSession session = request.getSession(true);
+    session.setAttribute("question", questionFrom);
+    session.setAttribute("questionDefaultList", questionDefaultFormList);
+    session.setAttribute("text", textFrom);
 
     // フォワード
     request.getRequestDispatcher("/WEB-INF/jsp/question/question.jsp").forward(request, response);

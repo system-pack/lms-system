@@ -1,6 +1,6 @@
-package jp.co.systempack.lms.entity;
+package jp.co.systempack.lms.question.form;
 
-public class Answer {
+public class AnswerForm {
 
   private int questionId;
   private int no;
