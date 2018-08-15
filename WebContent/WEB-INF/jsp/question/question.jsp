@@ -45,7 +45,7 @@
           <a class="nav-link active" id="question_content-tab" data-toggle="tab" href="#question_content" role="tab" aria-controls="question_content">問題</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" id="answer_content-tab" data-toggle="tab" href="#answer_content" role="tab" aria-controls="answer_content">解答</a>
+          <a  class="nav-link disabled" id="answer_content-tab" data-toggle="tab" href="#answer_content" role="tab" aria-controls="answer_content">解答</a>
         </li>
         <li class="nav-item">
           <a class="nav-link" id="text_content-tab" data-toggle="tab" href="#text_content" role="tab" aria-controls="text_content"><c:out value="${text.title}" /></a>
@@ -82,7 +82,7 @@
         <div class="tab-pane fade" id="text_content" role="tabpanel" aria-labelledby="text_content-tab">
 
           <div class="embed-responsive" style="height: 100%; width: 100%;">
-            <iframe class="embed-responsive-item" style="height: 100%; width: 100%;" 6 srcdoc='<c:out value="${text.text}" />'></iframe>
+            <iframe class="embed-responsive-item" style="height: 100%; width: 100%;" srcdoc='<c:out value="${text.text}" />'></iframe>
           </div>
 
         </div>
